@@ -4,6 +4,7 @@
 #include<string>
 #include<vector>
 #include<memory>
+#include<math.h>
 
 namespace GenericTrie {
 template<typename T,typename P>
@@ -15,6 +16,10 @@ struct Node{
     };
 template<typename T,typename P>
 class PrefixTree {
+    //NOTE on P:
+    //We use value initialisation implicitly for P. If using a custom distribution object, P() should produce whatever the equivalent of zero for log-prob or 1 for normal prob is...
+    //(i.e. something which can be multiplied by other probs). 
+    
     public:
 
     struct Leaf {
@@ -25,6 +30,18 @@ class PrefixTree {
         
         Leaf operator=(const Leaf &leaf){//Copy constructor.
             return Leaf(leaf.value,leaf.end_prob);
+        };
+    };
+
+
+    struct PossibleState {
+        Node<T,P> *current;
+        P running_prob; 
+        vector<T> trace_of_current_state;
+        PossibleState(Node<T,P> *current,const P prob,const vector<T> trace) : current {current}, running_prob {prob}, trace_of_current_state {trace}{};
+        PossibleState( Node<T,P> *current) : current {current} {}; 
+        PossibleState operator=(const PossibleState &state){
+            return PossibleState(state.current,state.running_prob,state.trace_of_current_state);
         };
     };
 
@@ -68,6 +85,61 @@ class PrefixTree {
         return matches;
     }
 
+
+    //partial: word to try matching
+    //Pc: probability of typing char correctly
+    //Pi: probability of inserting an unneeded char
+    //Pm: probability of typing a char wrong in place.
+    std::vector<PossibleState> findPossibleChildren(const std::vector<T> partial,const P Pc, const P Pi, const P Pm, const P prob_thresh){   
+        std::vector<PossibleState> current_states;
+        current_states.push_back(this->root.get());
+        for(T c : partial){
+            std::cout<<current_states.size()<<std::endl;
+            for(int i=0;i<current_states.size();i++){
+                const PossibleState state = current_states[i];
+                if(state.running_prob < prob_thresh)
+                    continue;
+                
+                if(state.current->children.size()==0){//if no child state, must be an insertion error
+                    current_states[i].running_prob += std::log(Pi);
+                }
+                else if(state.current->children.count(c) == 0){//if none of the children match
+                    for(auto &child_pair : state.current->children){
+                        auto new_state = state;
+                        new_state.current = child_pair.second.get();
+                        new_state.running_prob += std::log(1-Pi);//we know that the current char can't be correct, so it must be incorrect or a false insertion
+                        new_state.trace_of_current_state.push_back(child_pair.first);
+                        if(new_state.running_prob>prob_thresh)
+                            current_states.push_back(new_state);
+                    }
+                    current_states[i].running_prob += std::log(Pi);
+                }
+                else {//case with matching child
+                    auto n_other_children = state.current->children.size() -1;
+                    for(auto &child_pair : state.current->children){
+                        if(child_pair.first != c){
+                            PossibleState new_state = state;
+                            new_state.current = child_pair.second.get();
+                            new_state.running_prob += std::log(Pm/n_other_children);//this char was typed wrong
+                            new_state.trace_of_current_state.push_back(child_pair.first);
+                            if(new_state.running_prob>prob_thresh)
+                                current_states.push_back(new_state);
+                        }
+                    }
+                    auto new_state = state;
+                    // std::cout<<new_state.current<<"\n";
+                    // std::cout<<state.current<<"\n"<<std::endl;
+                    new_state.current = (state.current->children[c]).get();
+                    new_state.running_prob += std::log(Pc);//Correct char
+                    new_state.trace_of_current_state.push_back(c);
+                    if(new_state.running_prob>prob_thresh)
+                        current_states.push_back(new_state);
+                    current_states[i].running_prob += std::log(Pi); //this char shouldn't have been typed at all
+                }
+            }
+        }
+        return current_states;
+    }
     
     private:
 

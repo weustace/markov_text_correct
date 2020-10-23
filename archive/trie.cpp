@@ -89,6 +89,8 @@ int main(){
     while(getline(file,line))
         if(line!="")
             pt.insert(line);
+
+            
     file.close();
 
 

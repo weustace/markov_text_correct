@@ -93,40 +93,4 @@ class PrefixTree {
         }
     }
 };
-
-
-std::vector<std::string> stringToStringArr(std::string in){
-        std::vector<std::string> output;
-        for(auto c : in){
-            output.push_back(std::string({c}));
-        }
-        return output;
-    }
-
-// int main(){
-//     PrefixTree<std::string,double> pt;
-
-//     std::ifstream file("english-words/words.txt");
-//     std::string line;
-//     double x=0.2;
-//     while(getline(file,line))
-//         if(line!="")
-//             pt.insert(PrefixTree<std::string,double>::Leaf(stringToStringArr(line),0.2));
-//     file.close();
-
-
-//     std::string input = "twitche";
-//     std::cout<<"With input "<< input<<", generated possibilities:\n";
-//     auto words_with_vals = pt.possibleWords(stringToStringArr(input));
-//     for(auto  leaf : words_with_vals){
-//         std::cout<<"P="<<leaf.end_prob<<"\n";
-//         for(auto word : leaf.value)
-//             std::cout<<word;
-//         std::cout<<std::endl;
-        
-//     }
-
-//     return 0;
-// }
-
 }

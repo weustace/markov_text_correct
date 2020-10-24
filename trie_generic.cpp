@@ -5,6 +5,7 @@
 #include<vector>
 #include<memory>
 #include<math.h>
+#include<assert.h>
 
 namespace GenericTrie {
 template<typename T,typename P>
@@ -35,13 +36,13 @@ class PrefixTree {
 
 
     struct PossibleState {
-        Node<T,P> *current;
-        P running_prob; 
+        P running_prob=1; 
         vector<T> trace_of_current_state;
-        PossibleState(Node<T,P> *current,const P prob,const vector<T> trace) : current {current}, running_prob {prob}, trace_of_current_state {trace}{};
-        PossibleState( Node<T,P> *current) : current {current} {}; 
+        PossibleState(const P prob,const vector<T> trace) :  running_prob {prob}, trace_of_current_state {trace}{};
+
+        PossibleState() {}; 
         PossibleState operator=(const PossibleState &state){
-            return PossibleState(state.current,state.running_prob,state.trace_of_current_state);
+            return PossibleState(state.running_prob,state.trace_of_current_state);
         };
     };
 
@@ -84,80 +85,129 @@ class PrefixTree {
 
         return matches;
     }
-
+    
 
     //partial: word to try matching
     //Pc: probability of typing char correctly
     //Pi: probability of inserting an unneeded char
     //Pm: probability of typing a char wrong in place.
-    std::vector<PossibleState> findPossibleChildren(const std::vector<T> partial,const P Pc, const P Pi, const P Pm, const P prob_thresh){   
-        std::vector<PossibleState> current_states;
-        current_states.push_back(this->root.get());
+    std::vector<PossibleState> findPossibleChildren(const std::vector<T> partial,const P Pc, const P Pi, const P Pm, const P prob_thresh,const unsigned int max_missing_chars=5){   
+        std::unordered_map<Node<T,P>*,PossibleState> current_states;
+
+        current_states.insert({this->root.get(),PossibleState()});
+        insertPossibleChildStates(current_states,this->root.get(),Pi,max_missing_chars);
+
+
         for(T c : partial){//For each char in input
-            std::cout<<current_states.size()<<std::endl;
-            std::unordered_map<Node<T,P>*,unsigned int> counts;
-            const int current_state_size = current_states.size();
-            for(int i=0;i<current_state_size;i++){//for each of the states currently under consideration...
-                const PossibleState state = current_states[i];
+            std::vector<Node<T,P>*> to_process;
+            for(auto pair : current_states)//need to find a better way of doing this...expensive!
+                to_process.push_back(pair.first);
 
-                if(counts.count(state.current)){ //next few lines are in preparation for proper state combination
-                    counts[state.current]=counts[state.current]+1;
-                }
-                else{
-                    counts.insert({state.current,1});
-                }
-
-
-                if(state.running_prob < prob_thresh)//if the probability of the state is below some threshold, forget it...we should also pop it 
+            for(auto key : to_process){//(this is  a hack to get around iterator invalidation on current_states...)
+                auto state = current_states[key];
+                if(state.running_prob < prob_thresh){
+                    current_states.erase(key);
                     continue;
-
-
-                //beginning of update logic (currently flawed)               
-                if(state.current->children.size()==0){//if no child state, must be an insertion error
-                    current_states[i].running_prob += std::log(Pi);
                 }
-                else if(state.current->children.count(c) == 0){//if none of the children match
-                auto n_children = state.current->children.size();
-                    for(auto &child_pair : state.current->children){
-                        auto new_state = state;
-                        new_state.current = child_pair.second.get();
-                        new_state.running_prob += std::log(Pm/n_children);//we know that the current char can't be correct, so it must be incorrect or a false insertion
-                        new_state.trace_of_current_state.push_back(child_pair.first);
-                        if(new_state.running_prob>prob_thresh)
-                            current_states.push_back(new_state);
-                    }
-                    current_states[i].running_prob += std::log(Pi);
+
+                                //beginning of update logic (currently flawed)               
+                if(key->children.size()==0){//if no child state, must be an insertion error
+                    current_states[key].running_prob *= Pi;
                 }
-                else {//case with matching child
-                    auto n_other_children = state.current->children.size() + (-1 ? state.current->children.size()>1 : 0);
-                    for(auto &child_pair : state.current->children){
-                        if(child_pair.first != c){
-                            PossibleState new_state = state;
-                            new_state.current = child_pair.second.get();
-                            new_state.running_prob += std::log(Pm/n_other_children);//this char was typed wrong
+                else if(key->children.count(c) == 0){//if none of the children match
+                auto n_children = key->children.size();
+                    for(auto &child_pair : key->children){
+                        auto child_elem = child_pair.second.get();
+                        if(current_states.count(child_elem)){
+                            current_states[child_elem].running_prob += state.running_prob*(Pm/n_children);
+                        }
+                        else{
+                            auto new_state = state;
+
+                            new_state.running_prob *= (Pm/n_children);//we know that the current char can't be correct, so it must be incorrect or a false insertion
                             new_state.trace_of_current_state.push_back(child_pair.first);
                             if(new_state.running_prob>prob_thresh)
-                                current_states.push_back(new_state);
+                                current_states.insert({child_elem,new_state});
                         }
                     }
-                    auto new_state = state;
-                    new_state.current = (state.current->children[c]).get();
-                    new_state.running_prob += std::log(Pc);//Correct char
-                    new_state.trace_of_current_state.push_back(c);
-                    if(new_state.running_prob>prob_thresh)
-                        current_states.push_back(new_state);
-                    current_states[i].running_prob += std::log(Pi); //this char shouldn't have been typed at all
+                    current_states[key].running_prob *=Pi;
+                    insertPossibleChildStates(current_states,key,Pi,max_missing_chars);
                 }
-            }
+                else {//case with matching child
+                    auto n_other_children = key->children.size() + (-1 ? key->children.size()>1 : 0);
+                    for(auto &child_pair : key->children){
+                        if(child_pair.first != c){
+                            auto child_elem = child_pair.second.get();
+                            if(current_states.count(child_elem)){
+                                current_states[child_elem].running_prob += state.running_prob*(Pm/n_other_children);
+                            }
+                            else{
+                                PossibleState new_state = state;
+                                
+                                new_state.running_prob *= (Pm/n_other_children);//this char was typed wrong
+                                new_state.trace_of_current_state.push_back(child_pair.first);
+                                if(new_state.running_prob>prob_thresh)
+                                    current_states.insert({child_elem,new_state});
+                            }
+                        }
+                    }
 
-            std::cout<<counts.size()<<"========="<<std::endl;//counts.size() gives the *actual* number of states...<<current_states.size()
+                    auto child_elem =(key->children[c]).get();
+                    if(current_states.count(child_elem)){
+                        current_states[child_elem].running_prob += state.running_prob*Pc;
+                    }
+                    else{
+                        auto new_state = state;
+                        new_state.running_prob *= Pc;//Correct char
+                        new_state.trace_of_current_state.push_back(c);
+                        if(new_state.running_prob>prob_thresh)
+                            current_states.insert({child_elem,new_state});
+                    }
+                    current_states[key].running_prob *= Pi; //this char shouldn't have been typed at all
+                    insertPossibleChildStates(current_states,key,Pi,max_missing_chars);
+                }
+                
+                
+            
+            }
+            
+
+                //logic to be refactored/rewritten...
         }
-        return current_states;
+        std::cout<<current_states.size()<<std::endl;
+        std::vector<PossibleState> output;
+
+        for(auto pair : current_states){
+            output.push_back(pair.second);    
+        }
+        return output;
+
     }
     
     private:
 
     std::unique_ptr<Node<T,P>> root;
+
+
+    void insertPossibleChildStates(std::unordered_map<Node<T,P>*,PossibleState> &current_states, Node<T,P>* root,const P Pi,const unsigned int max_depth,const unsigned int current_depth=0) {
+        assert(current_states.count(root)>0); //root must have an entry in current_states already
+        if(current_depth < max_depth){
+            auto state = current_states[root];
+            for(auto &child_pair : root->children){
+                Node<T,P> *current_item = child_pair.second.get();
+                if(current_states.count(current_item)==0){//if the state is not already under consideration
+                    auto new_state = state;
+                    new_state.trace_of_current_state.push_back(child_pair.first);
+                    new_state.running_prob = Pi* new_state.running_prob;
+                    current_states.insert({current_item,new_state});
+                }
+                else{
+                    current_states[current_item].running_prob = current_states[current_item].running_prob + Pi*state.running_prob;
+                }
+                insertPossibleChildStates(current_states,current_item,Pi,max_depth,current_depth+1);
+            }
+        }
+    }
 
     void possibleEndings(Leaf root,std::unique_ptr<Node<T,P>> *parent,std::vector<Leaf> &matches){
         //Descend from the given parent node and add root+{all child paths} to the given vector of strings.

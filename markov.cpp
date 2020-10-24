@@ -4,6 +4,7 @@
 #include<iostream>
 #include<algorithm>
 #include<float.h>
+#include<chrono>
 int main(){
     
     GenericTrie::PrefixTree<char,double> words;
@@ -32,8 +33,8 @@ int main(){
     //now to explore for a more practical example
 
     auto query_vec = vector<char>(query.begin(),query.end());
-
-    auto results = words.findPossibleChildren(query_vec,0.9,0.05,0.05,(double)-100000.0);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    auto results = words.findPossibleChildren(query_vec,0.9,0.05,0.05,(double)1e-5);
     std::cout<<results.size()<<std::endl;
     std::vector<std::pair<std::vector<char>,double>> high_results;
     for(unsigned long i=0;i<results.size();i++){
@@ -43,12 +44,16 @@ int main(){
     }    
 
     std::sort(high_results.begin(),high_results.end(),[](std::pair<std::vector<char>,double> a, std::pair<std::vector<char>,double> b){return a.second<b.second;});
+    auto t2 = std::chrono::high_resolution_clock::now();
     for(auto result_pair : high_results){
     for (auto c : result_pair.first){
         std::cout<<c;
     }
     std::cout<<" p="<<result_pair.second<<std::endl;
     }
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();//https://stackoverflow.com/questions/22387586/measuring-execution-time-of-a-function-in-c
+
+    std::cout<<"Query took "<<duration<<"us"<<std::endl;
     return 0;
 } 
 

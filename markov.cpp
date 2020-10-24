@@ -18,7 +18,7 @@ int main(){
     }
 
     //now try querying
-    std::string query {"cal"};
+    std::string query {"clculate"};
 
     auto matches = words.possibleWords(std::vector<char>(query.begin(),query.end()));
     std::cout<<"Querying root "<<query<<std::endl;
@@ -33,26 +33,21 @@ int main(){
 
     auto query_vec = vector<char>(query.begin(),query.end());
 
-    auto results = words.findPossibleChildren(query_vec,0.95,0.001,0.0499,(double)-100000.0);
+    auto results = words.findPossibleChildren(query_vec,0.9,0.05,0.05,(double)-100000.0);
     std::cout<<results.size()<<std::endl;
-    double min_prob = DBL_MAX;
-    unsigned long ind_of_max;
-    unsigned long ind_of_min;
-    double max_prob = -DBL_MAX;
+    std::vector<std::pair<std::vector<char>,double>> high_results;
     for(unsigned long i=0;i<results.size();i++){
-        if(results[i].running_prob < min_prob){
-            min_prob = results[i].running_prob;
-            ind_of_min = i;
-        }
-        if(results[i].running_prob > max_prob && results[i].trace_of_current_state.size()!=0){
-            max_prob = results[i].running_prob;
-            ind_of_max = i;
+        if(results[i].running_prob > -10 ){
+            high_results.push_back({results[i].trace_of_current_state,results[i].running_prob});
         }
     }    
-    std::cout<<min_prob<<std::endl;
-    std::cout<<max_prob<<std::endl;
-    for (auto c : results[ind_of_max].trace_of_current_state){
-        std::cout<<c<<std::endl;
+
+    std::sort(high_results.begin(),high_results.end(),[](std::pair<std::vector<char>,double> a, std::pair<std::vector<char>,double> b){return a.second<b.second;});
+    for(auto result_pair : high_results){
+    for (auto c : result_pair.first){
+        std::cout<<c;
+    }
+    std::cout<<" p="<<result_pair.second<<std::endl;
     }
     return 0;
 } 

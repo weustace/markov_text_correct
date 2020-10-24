@@ -95,8 +95,16 @@ class PrefixTree {
         current_states.push_back(this->root.get());
         for(T c : partial){
             std::cout<<current_states.size()<<std::endl;
-            for(int i=0;i<current_states.size();i++){
+            std::unordered_map<Node<T,P>*,unsigned int> counts;
+            const int current_state_size = current_states.size();
+            for(int i=0;i<current_state_size;i++){
                 const PossibleState state = current_states[i];
+                if(counts.count(state.current)){
+                    counts[state.current]=counts[state.current]+1;
+                }
+                else{
+                    counts.insert({state.current,1});
+                }
                 if(state.running_prob < prob_thresh)
                     continue;
                 
@@ -107,7 +115,7 @@ class PrefixTree {
                     for(auto &child_pair : state.current->children){
                         auto new_state = state;
                         new_state.current = child_pair.second.get();
-                        new_state.running_prob += std::log(1-Pi);//we know that the current char can't be correct, so it must be incorrect or a false insertion
+                        new_state.running_prob += std::log(Pm);//we know that the current char can't be correct, so it must be incorrect or a false insertion
                         new_state.trace_of_current_state.push_back(child_pair.first);
                         if(new_state.running_prob>prob_thresh)
                             current_states.push_back(new_state);
@@ -137,6 +145,7 @@ class PrefixTree {
                     current_states[i].running_prob += std::log(Pi); //this char shouldn't have been typed at all
                 }
             }
+            std::cout<<counts.size()<<"========="<<std::endl;
         }
         return current_states;
     }

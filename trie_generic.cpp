@@ -37,12 +37,13 @@ class PrefixTree {
 
     struct PossibleState {
         P running_prob=1; 
+        P word_prob;
         vector<T> trace_of_current_state;
-        PossibleState(const P prob,const vector<T> trace) :  running_prob {prob}, trace_of_current_state {trace}{};
+        PossibleState(const P prob,const vector<T> trace,const P word_probability) :  running_prob {prob}, trace_of_current_state {trace}, word_prob {word_probability} {};
 
         PossibleState() {}; 
         PossibleState operator=(const PossibleState &state){
-            return PossibleState(state.running_prob,state.trace_of_current_state);
+            return PossibleState(state.running_prob,state.trace_of_current_state,state.word_prob);
         };
     };
 
@@ -91,7 +92,7 @@ class PrefixTree {
     //Pc: probability of typing char correctly
     //Pi: probability of inserting an unneeded char
     //Pm: probability of typing a char wrong in place.
-    std::vector<PossibleState> findPossibleChildren(const std::vector<T> partial,const P Pc, const P Pi, const P Pm, const P prob_thresh,const unsigned int max_missing_chars=5){   
+    std::vector<PossibleState> findPossibleChildren(const std::vector<T> partial,const P Pc, const P Pi, const P Pm, const P prob_thresh,const bool space_inserted,const unsigned int max_missing_chars=3){   
         std::unordered_map<Node<T,P>*,PossibleState> current_states;
 
         current_states.insert({this->root.get(),PossibleState()});
@@ -110,7 +111,7 @@ class PrefixTree {
                     continue;
                 }
 
-                                //beginning of update logic (currently flawed)               
+                //beginning of update logic (currently flawed)               
                 if(key->children.size()==0){//if no child state, must be an insertion error
                     current_states[key].running_prob *= Pi;
                 }
@@ -165,21 +166,35 @@ class PrefixTree {
                     }
                     current_states[key].running_prob *= Pi; //this char shouldn't have been typed at all
                     insertPossibleChildStates(current_states,key,Pi,max_missing_chars);
-                }
-                
-                
-            
+                }           
             }
             
 
                 //logic to be refactored/rewritten...
         }
-        std::cout<<current_states.size()<<std::endl;
-        std::vector<PossibleState> output;
 
+        // We only want to return complete words. We should have added all possible child states max_missing_chars ahead during the last pass,
+        // so if the word is complete, our job is done, otherwise we look a further 5 chars ahead from current states.
+        // if(!space_inserted){
+        //     std::vector<Node<T,P>*> to_process;
+        //     for(auto pair : current_states)//need to find a better way of doing this...expensive!
+        //         to_process.push_back(pair.first);
+        //     for(auto key : to_process){
+        //         insertPossibleChildStates(current_states,key,1,5);
+        //     }
+        // }
+        std::vector<PossibleState> output;
+        
         for(auto pair : current_states){
-            output.push_back(pair.second);    
+            if(pair.first->terminates){
+                auto output_state = pair.second;
+                output_state.word_prob = pair.first->end_probability;
+                // output_state.running_prob *= pair.first->end_probability;
+                output.push_back(output_state);
+            }
         }
+        // for(auto pair : current_states)
+        //     output.push_back(pair.second);
         return output;
 
     }

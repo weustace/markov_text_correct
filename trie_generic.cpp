@@ -111,10 +111,9 @@ class PrefixTree {
                     continue;
                 }
 
-                if(key->children.count(c)) {//case with matching child
-               
+                if(key->children.count(c)) {//case with matching child  
                     auto child_elem =(key->children[c]).get();
-               
+
                     if(current_states.count(child_elem)){
                         current_states[child_elem].running_prob += state.running_prob*Pc;
                     }
@@ -130,10 +129,7 @@ class PrefixTree {
                 addChildrenOfState(current_states,key,Pm,prob_thresh,c);
                 current_states[key].running_prob *= Pi; //this char shouldn't have been typed at all  
                 insertPossibleChildStates(current_states,key,Pi,max_missing_chars);      
-            }
-            
-
-                
+            }                
         }
 
         // We only want to return complete words. We should have added all possible child states max_missing_chars ahead during the last pass,
@@ -190,21 +186,22 @@ class PrefixTree {
     }
 
     void addChildrenOfState(std::unordered_map<Node<T,P>*,PossibleState> &current_states,Node<T,P>*key,const P Pm, const P prob_thresh,const T current_char){
+        //Consider the probability that each of the children of the current node is the intended next character. Add each of these states to the stack.
         auto n_children = key->children.size() - key->children.count(current_char);
         auto state = current_states[key];
-        for(auto &child_pair : key->children){
-                        if(child_pair.first != current_char){
+        for(auto &child_pair : key->children){//for each child of root
+                        if(child_pair.first != current_char){//if child is not the current char
                             auto child_elem = child_pair.second.get();
-                            if(current_states.count(child_elem)){
-                                current_states[child_elem].running_prob += state.running_prob*(Pm/n_children);
+                            if(current_states.count(child_elem)){ //Consider the probability of moving to the child state via the current state
+                                current_states[child_elem].running_prob += state.running_prob*(Pm/n_children); //(if the next state is already in the map)
                             }
                             else{
                                 PossibleState new_state = state;
                                 
                                 new_state.running_prob *= (Pm/n_children);//this char was typed wrong
                                 new_state.trace_of_current_state.push_back(child_pair.first);
-                                if(new_state.running_prob>prob_thresh)
-                                    current_states.insert({child_elem,new_state});
+                                if(new_state.running_prob>prob_thresh)//(if it's not _very_ unlikely)
+                                    current_states.insert({child_elem,new_state}); //(if the child state isn't already in the map, insert it)
                             }
                         }
                     }

@@ -111,49 +111,10 @@ class PrefixTree {
                     continue;
                 }
 
-                //beginning of update logic (currently flawed)               
-                if(key->children.size()==0){//if no child state, must be an insertion error
-                    current_states[key].running_prob *= Pi;
-                }
-                else if(key->children.count(c) == 0){//if none of the children match
-                auto n_children = key->children.size();
-                    for(auto &child_pair : key->children){
-                        auto child_elem = child_pair.second.get();
-                        if(current_states.count(child_elem)){
-                            current_states[child_elem].running_prob += state.running_prob*(Pm/n_children);
-                        }
-                        else{
-                            auto new_state = state;
-
-                            new_state.running_prob *= (Pm/n_children);//we know that the current char can't be correct, so it must be incorrect or a false insertion
-                            new_state.trace_of_current_state.push_back(child_pair.first);
-                            if(new_state.running_prob>prob_thresh)
-                                current_states.insert({child_elem,new_state});
-                        }
-                    }
-                    current_states[key].running_prob *=Pi;
-                    insertPossibleChildStates(current_states,key,Pi,max_missing_chars);
-                }
-                else {//case with matching child
-                    auto n_other_children = key->children.size() + (-1 ? key->children.size()>1 : 0);
-                    for(auto &child_pair : key->children){
-                        if(child_pair.first != c){
-                            auto child_elem = child_pair.second.get();
-                            if(current_states.count(child_elem)){
-                                current_states[child_elem].running_prob += state.running_prob*(Pm/n_other_children);
-                            }
-                            else{
-                                PossibleState new_state = state;
-                                
-                                new_state.running_prob *= (Pm/n_other_children);//this char was typed wrong
-                                new_state.trace_of_current_state.push_back(child_pair.first);
-                                if(new_state.running_prob>prob_thresh)
-                                    current_states.insert({child_elem,new_state});
-                            }
-                        }
-                    }
-
+                if(key->children.count(c)) {//case with matching child
+               
                     auto child_elem =(key->children[c]).get();
+               
                     if(current_states.count(child_elem)){
                         current_states[child_elem].running_prob += state.running_prob*Pc;
                     }
@@ -164,29 +125,33 @@ class PrefixTree {
                         if(new_state.running_prob>prob_thresh)
                             current_states.insert({child_elem,new_state});
                     }
-                    current_states[key].running_prob *= Pi; //this char shouldn't have been typed at all
-                    insertPossibleChildStates(current_states,key,Pi,max_missing_chars);
-                }           
+                    
+                }   
+                addChildrenOfState(current_states,key,Pm,prob_thresh,c);
+                current_states[key].running_prob *= Pi; //this char shouldn't have been typed at all  
+                insertPossibleChildStates(current_states,key,Pi,max_missing_chars);      
             }
             
 
-                //logic to be refactored/rewritten...
+                
         }
 
         // We only want to return complete words. We should have added all possible child states max_missing_chars ahead during the last pass,
         // so if the word is complete, our job is done, otherwise we look a further 5 chars ahead from current states.
-        // if(!space_inserted){
-        //     std::vector<Node<T,P>*> to_process;
-        //     for(auto pair : current_states)//need to find a better way of doing this...expensive!
-        //         to_process.push_back(pair.first);
-        //     for(auto key : to_process){
-        //         insertPossibleChildStates(current_states,key,1,5);
-        //     }
-        // }
+        if(!space_inserted){
+            std::vector<Node<T,P>*> to_process;
+            for(auto pair : current_states)//need to find a better way of doing this...expensive!
+                to_process.push_back(pair.first);
+            for(auto key : to_process){
+                insertPossibleChildStates(current_states,key,1,5);
+            }
+        }
+
+        
         std::vector<PossibleState> output;
         
         for(auto pair : current_states){
-            if(pair.first->terminates){
+            if(pair.first->terminates && pair.second.running_prob > prob_thresh){
                 auto output_state = pair.second;
                 output_state.word_prob = pair.first->end_probability;
                 // output_state.running_prob *= pair.first->end_probability;
@@ -222,6 +187,27 @@ class PrefixTree {
                 insertPossibleChildStates(current_states,current_item,Pi,max_depth,current_depth+1);
             }
         }
+    }
+
+    void addChildrenOfState(std::unordered_map<Node<T,P>*,PossibleState> &current_states,Node<T,P>*key,const P Pm, const P prob_thresh,const T current_char){
+        auto n_children = key->children.size() - key->children.count(current_char);
+        auto state = current_states[key];
+        for(auto &child_pair : key->children){
+                        if(child_pair.first != current_char){
+                            auto child_elem = child_pair.second.get();
+                            if(current_states.count(child_elem)){
+                                current_states[child_elem].running_prob += state.running_prob*(Pm/n_children);
+                            }
+                            else{
+                                PossibleState new_state = state;
+                                
+                                new_state.running_prob *= (Pm/n_children);//this char was typed wrong
+                                new_state.trace_of_current_state.push_back(child_pair.first);
+                                if(new_state.running_prob>prob_thresh)
+                                    current_states.insert({child_elem,new_state});
+                            }
+                        }
+                    }
     }
 
     void possibleEndings(Leaf root,std::unique_ptr<Node<T,P>> *parent,std::vector<Leaf> &matches){

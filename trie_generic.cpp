@@ -25,7 +25,7 @@ class PrefixTree {
 
     struct Leaf {
         std::vector<T> value;
-        P end_prob;
+        P end_prob=1;
         Leaf(const std::vector<T> value) : value {value} {}; 
         Leaf(const std::vector<T> value, const P end_prob) : value {value}, end_prob {end_prob} {}; 
         
@@ -37,7 +37,7 @@ class PrefixTree {
 
     struct PossibleState {
         P running_prob=1; 
-        P word_prob;
+        P word_prob=1;
         vector<T> trace_of_current_state;
         PossibleState(const P prob,const vector<T> trace,const P word_probability) :  running_prob {prob}, trace_of_current_state {trace}, word_prob {word_probability} {};
 
@@ -64,6 +64,16 @@ class PrefixTree {
         current->get()->end_probability = item.end_prob;
     }
 
+
+    Node<T,P>* traverseTo(const std::vector<T> &word){
+        auto current = &(this->root);
+        for(T c : word){
+            if(!current->get()->children.count(c))
+                return nullptr;
+            else current = &(current->get()->children[c]);
+        }
+        return current->get();
+    }
 
     std::vector<Leaf> possibleWords(const std::vector<T> &partial){
         std::vector<Leaf> matches;
